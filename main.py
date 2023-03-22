@@ -67,6 +67,15 @@ class Player(pygame.sprite.Sprite):
         self.direction = "left"
         self.animation_count = 0
         self.fall_count = 0
+        self.jump_count = 0
+    
+    def jump(self):
+        self.y_vel = -self.GRAVITY * 8 
+        self.animation_count = 0
+        self.jump_count += 1
+        if self.jump_count == 1:
+            self.fall_count = 0
+ 
 
     def move(self, dx, dy):
         self.rect.x += dx
@@ -85,11 +94,20 @@ class Player(pygame.sprite.Sprite):
             self.animation_count = 0
     
     def loop(self, fps):
-       # self.y_vel += min(1, (self.fall_count / fps) * self.GRAVITY)
+        self.y_vel += min(1, (self.fall_count / fps) * self.GRAVITY)
         self.move(self.x_vel, self.y_vel)
 
         self.fall_count += 1
         self.update_sprite()
+
+    def landed(self):
+        self.fall_count = 0
+        self.y_vel = 0
+        self.jump_count = 0
+
+    def hit_head(self):
+        self.count = 0
+        self.y_vel *= -1
 
     def update_sprite(self):
         sprite_sheet = "idle"
@@ -144,9 +162,11 @@ def get_background(name):
     
     return tiles, image
 
-def draw(window, background, bg_image, player):
+def draw(window, background, bg_image, player, object):
     for tile in background:
         window.blit(bg_image, tile)
+
+
 
     for obj in object:
         obj.draw(window)
@@ -155,15 +175,31 @@ def draw(window, background, bg_image, player):
 
     pygame.display.update()
 
-def handle_move(player):
+def handle_vertical_collision(player, objects, dy):
+    collided_objects = []
+    for obj in objects:
+        if pygame.sprite.collide_mask(player, obj):
+            if dy > 0:
+                player.rect.bottom = obj.rect.top
+            if dy < 0:
+                player.rect.top = obj.rect.bottom
+                player.hit_head()
+
+        collided_objects.append(obj)
+
+    return collided_objects
+
+def handle_move(player, objects):
     keys = pygame.key.get_pressed()
 
     player.x_vel = 0
 
-    if keys[pygame.K_a]:
+    if keys[pygame.K_LEFT]:
         player.move_left(PLAYER_VEL)
-    if keys[pygame.K_d]:
+    if keys[pygame.K_RIGHT]:
         player.move_right(PLAYER_VEL)
+    
+    handle_vertical_collision(player, objects, player.y_vel)
 
 def main(window):
     clock = pygame.time.Clock()
@@ -172,7 +208,8 @@ def main(window):
     block_size = 96
 
     player = Player(100, 100, 50, 50)
-    blocks = [Block(0, HEIGHT - block_size, block_size)]
+    floor = [Block(i * block_size, HEIGHT - block_size, block_size) for i in range(- WIDHT // block_size, (WIDHT * 2) // block_size)]
+
 
 
 # Fixa o valor de FPS máximo em 60 
@@ -186,9 +223,13 @@ def main(window):
                 run = False
                 break
 
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_SPACE and player.jump_count < 2:
+                    player.jump()
+
         player.loop(FPS)        
-        handle_move(player)
-        draw(window, background, bg_image, player, blocks)
+        handle_move(player, floor)
+        draw(window, background, bg_image, player, floor)
 
     pygame.quit()
     quit()        
